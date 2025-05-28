@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/We-Meet-2025-Web/static/css/main.2606fead.css",
+    "main.js": "/We-Meet-2025-Web/static/js/main.b31cded6.js",
+    "static/js/453.3007edc7.chunk.js": "/We-Meet-2025-Web/static/js/453.3007edc7.chunk.js",
+    "index.html": "/We-Meet-2025-Web/index.html",
+    "main.2606fead.css.map": "/We-Meet-2025-Web/static/css/main.2606fead.css.map",
+    "main.b31cded6.js.map": "/We-Meet-2025-Web/static/js/main.b31cded6.js.map",
+    "453.3007edc7.chunk.js.map": "/We-Meet-2025-Web/static/js/453.3007edc7.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.2606fead.css",
+    "static/js/main.b31cded6.js"
+  ]
+}
