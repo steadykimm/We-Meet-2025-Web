@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './EmergencyControlSystem.css';
 
 // 타입 정의
@@ -33,6 +33,12 @@ interface CameraFeed {
   ip: string;
 }
 
+interface ModalStreamProps {
+  cameraId: number | null;
+  streamKey: number;
+  cameraList: CameraFeed[];
+}
+
 const EmergencyControlSystem: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState<string>('dashboard');
   const [selectedCamera, setSelectedCamera] = useState<number>(1);
@@ -42,7 +48,26 @@ const EmergencyControlSystem: React.FC = () => {
   const [filterValue, setFilterValue] = useState<string>("모든 유형");
   const [modalCamera, setModalCamera] = useState<number | null>(null);
   const [selectedParking, setSelectedParking] = useState<string | null>(null);
+  const [isStreamPaused, setIsStreamPaused] = useState<boolean>(false);
+  const [streamKey, setStreamKey] = useState<number>(0); // 스트림 새로고침 키
 
+  // 모달 열기/닫기에 따른 스트림 관리
+  useEffect(() => {
+    if (modalCamera !== null) {
+      // 모달이 열리면 그리드 스트림 중지
+      setIsStreamPaused(true);
+
+      // 모달 스트림 연결을 위한 고유 키 증가
+      setStreamKey(prev => prev + 1);
+    } else {
+      // 모달이 닫히면 약간의 지연 후 그리드 스트림 다시 시작
+      const timer = setTimeout(() => {
+        setIsStreamPaused(false);
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [modalCamera]);
 
   // 현재 시간 업데이트
   useEffect(() => {
@@ -127,6 +152,53 @@ const EmergencyControlSystem: React.FC = () => {
   const filterCameras = (cameras: CameraFeed[]) => {
     return cameras.filter(camera =>
       camera.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  };
+
+  // 모달 내부 스트림 컴포넌트
+  const ModalStreamComponent: React.FC<ModalStreamProps> = ({ cameraId, streamKey, cameraList }) => {
+    const videoRef = useRef<HTMLImageElement>(null);
+
+    // 초기 이미지 URL 설정
+    const camera = cameraList.find(cam => cam.id === cameraId);
+    const ip = camera?.ip || '172.31.0.101';
+    const initialStreamUrl = `http://${ip}:81/stream?init=true`;
+
+    useEffect(() => {
+      if (cameraId !== null && videoRef.current) {
+
+        // 약간의 지연 후 스트림 연결 (이전 연결이 완전히 끊기도록)
+        const timer = setTimeout(() => {
+          if (videoRef.current) {
+            // 새로운 스트림 URL 생성 (캐시 방지용 랜덤 키 추가)
+            const streamUrl = `http://${ip}:81/stream?key=${streamKey}&t=${Date.now()}`;
+            console.log("Setting stream URL:", streamUrl); // 디버깅용
+            videoRef.current.src = streamUrl;
+          }
+        }, 300);
+
+        return () => clearTimeout(timer);
+      }
+    }, [cameraId, streamKey, cameraList, ip]);
+
+    if (!cameraId) return null;
+
+    return (
+      <div className="modal-camera-feed">
+        <div className="modal-camera-image">
+          <img
+            ref={videoRef}
+            src={initialStreamUrl}
+            alt={`카메라 ${cameraId}`}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.onerror = null;
+              target.src = 'https://placehold.co/800x450/1f2937/cccccc?text=연결+실패';
+            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+      </div>
     );
   };
 
@@ -217,15 +289,11 @@ const EmergencyControlSystem: React.FC = () => {
     const ip = camera?.ip || '172.31.0.101';
     const streamUrl = `http://${ip}:81/stream`;
 
-  // 모달이 열려있을 때 그리드의 스트림 연결 끊기
-  const shouldShowStream = modalCamera === null;
-
     return (
       <div
         key={id}
         className={`camera-feed ${id === selectedCamera ? 'active' : ''}`}
         onClick={() => {
-          setSelectedCamera(id);
           setModalCamera(id); // 모달 표시 트리거
         }}
       >
@@ -242,22 +310,22 @@ const EmergencyControlSystem: React.FC = () => {
           </div>
         )}
         <div className="camera-feed-image">
-          {shouldShowStream? (
-          <img
-            src={streamUrl}
-            alt={`카메라 ${id}`}
-            onError={(e) => {
-              // 이미지 로드 실패 시 대체 이미지 표시
-              const target = e.target as HTMLImageElement;
-              target.onerror = null;
-              target.src = 'https://placehold.co/400x225/1f2937/cccccc?text=Connection+failed';
-            }}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+          {!isStreamPaused ? (
+            <img
+              src={streamUrl}
+              alt={`카메라 ${id}`}
+              onError={(e) => {
+                // 이미지 로드 실패 시 대체 이미지 표시
+                const target = e.target as HTMLImageElement;
+                target.onerror = null;
+                target.src = 'https://placehold.co/400x225/1f2937/cccccc?text=Connection+failed';
+              }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           ) : (
             <div className='stream-paused'>
               <span>Looking at modal</span>
-              </div>
+            </div>
           )}
         </div>
         <div className="camera-feed-name">
@@ -633,29 +701,11 @@ const EmergencyControlSystem: React.FC = () => {
               ✕
             </button>
             <h3>{cameraFeedList.find(cam => cam.id === modalCamera)?.name || `카메라 ${modalCamera}`}</h3>
-            <div className="modal-camera-feed">
-              {(() => {
-                const camera = cameraFeedList.find(cam => cam.id === modalCamera);
-                const ip = camera?.ip || '172.31.0.101';
-                const streamUrl = `http://${ip}:81/stream?rand=${Math.random()}`; // 캐시 방지
-
-                return (
-                  <div className="modal-camera-image">
-                    <img
-                      src={streamUrl}
-                      alt={`카메라 ${modalCamera}`}
-                      onError={(e) => {
-                        // 이미지 로드 실패 시 대체 이미지 표시
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        target.src = 'https://placehold.co/800x450/1f2937/cccccc?text=Connection+failed';
-                      }}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  </div>
-                );
-              })()}
-            </div>
+            <ModalStreamComponent
+              cameraId={modalCamera}
+              streamKey={streamKey}
+              cameraList={cameraFeedList}
+            />
             {/* 추가 카메라 정보 및 조치 버튼 */}
             <div className="modal-camera-info">
               <div className="modal-camera-status">
