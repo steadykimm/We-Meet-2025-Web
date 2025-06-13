@@ -1,7 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './EmergencyControlSystem.css';
+import MapComponent from './MapComponent';
 
 // 타입 정의
+interface Emergency {
+  id: string;
+  type: string;
+  location: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+  status: string;
+  priority: string;
+  time: string;
+  description: string;
+}
+
+interface Vehicle {
+  id: string;
+  type: string;
+  location: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+  status: string;
+  assignedTo?: string;
+}
+
 interface EmergencyVehicle {
   id: string;
   type: string;
@@ -35,7 +62,6 @@ interface CameraFeed {
 
 interface ModalStreamProps {
   cameraId: number | null;
-  streamKey: number;
   cameraList: CameraFeed[];
 }
 
@@ -48,26 +74,6 @@ const EmergencyControlSystem: React.FC = () => {
   const [filterValue, setFilterValue] = useState<string>("모든 유형");
   const [modalCamera, setModalCamera] = useState<number | null>(null);
   const [selectedParking, setSelectedParking] = useState<string | null>(null);
-  const [isStreamPaused, setIsStreamPaused] = useState<boolean>(false);
-  const [streamKey, setStreamKey] = useState<number>(0); // 스트림 새로고침 키
-
-  // 모달 열기/닫기에 따른 스트림 관리
-  useEffect(() => {
-    if (modalCamera !== null) {
-      // 모달이 열리면 그리드 스트림 중지
-      setIsStreamPaused(true);
-
-      // 모달 스트림 연결을 위한 고유 키 증가
-      setStreamKey(prev => prev + 1);
-    } else {
-      // 모달이 닫히면 약간의 지연 후 그리드 스트림 다시 시작
-      const timer = setTimeout(() => {
-        setIsStreamPaused(false);
-      }, 300);
-
-      return () => clearTimeout(timer);
-    }
-  }, [modalCamera]);
 
   // 현재 시간 업데이트
   useEffect(() => {
@@ -90,31 +96,125 @@ const EmergencyControlSystem: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 샘플 데이터 - 실제 구현에서는 API로 가져올 데이터
-  const emergencyVehicles: EmergencyVehicle[] = [
-    { id: 'E001', type: '소방차', location: '강남구 테헤란로 123', status: '출동중', eta: '5분' },
-    { id: 'E002', type: '구급차', location: '서초구 서초대로 456', status: '대기중', eta: '-' },
-    { id: 'E003', type: '순찰차', location: '강남구 학동로 789', status: '출동중', eta: '3분' }
-  ];
+  // 긴급상황 데이터 (울산 지역)
+  const [emergencies] = useState<Emergency[]>([
+    {
+      id: 'E001',
+      type: '화재',
+      location: '울산시 남구 삼산로 350',
+      coordinates: { lat: 35.5384, lng: 129.3114 },
+      status: '대응중',
+      priority: '긴급',
+      time: '2024-03-15 14:30',
+      description: '상가건물 3층에서 화재 발생'
+    },
+    {
+      id: 'E002',
+      type: '교통사고',
+      location: '울산시 중구 성남동 중앙로',
+      coordinates: { lat: 35.5595, lng: 129.3242 },
+      status: '접수',
+      priority: '높음',
+      time: '2024-03-15 14:45',
+      description: '2중 추돌사고, 부상자 2명'
+    },
+    {
+      id: 'E003',
+      type: '의료응급',
+      location: '울산시 북구 화봉동 울산대학교',
+      coordinates: { lat: 35.5449, lng: 129.2677 },
+      status: '처리완료',
+      priority: '긴급',
+      time: '2024-03-15 13:20',
+      description: '심장마비 환자 발생'
+    },
+    {
+      id: 'E004',
+      type: '범죄',
+      location: '울산시 동구 일산동 현대백화점',
+      coordinates: { lat: 35.5102, lng: 129.4161 },
+      status: '대응중',
+      priority: '높음',
+      time: '2024-03-15 14:50',
+      description: '편의점 강도사건 신고'
+    }
+  ]);
 
-  const incidents: Incident[] = [
-    { id: 'I001', type: '화재', location: '강남구 역삼동 123-45', severity: '심각', reportTime: '09:15:24' },
-    { id: 'I002', type: '교통사고', location: '서초구 서초동 456-78', severity: '중간', reportTime: '08:36:47' }
-  ];
+  // 긴급차량 데이터 (울산 지역)
+  const [vehicles] = useState<Vehicle[]>([
+    {
+      id: 'V001',
+      type: '소방차',
+      location: '울산시 남구 삼산로 근처',
+      coordinates: { lat: 35.5380, lng: 129.3120 },
+      status: '출동중',
+      assignedTo: 'E001'
+    },
+    {
+      id: 'V002',
+      type: '구급차',
+      location: '울산시 중구 성남동 중앙로 근처',
+      coordinates: { lat: 35.5590, lng: 129.3250 },
+      status: '현장도착',
+      assignedTo: 'E002'
+    },
+    {
+      id: 'V003',
+      type: '경찰차',
+      location: '울산시 동구 일산동 현대백화점 근처',
+      coordinates: { lat: 35.5100, lng: 129.4165 },
+      status: '출동중',
+      assignedTo: 'E004'
+    },
+    {
+      id: 'V004',
+      type: '소방차',
+      location: '울산시 중구 태화동 소방서',
+      coordinates: { lat: 35.5668, lng: 129.3133 },
+      status: '대기중'
+    },
+    {
+      id: 'V005',
+      type: '구급차',
+      location: '울산시 동구 전하동 울산대학교병원',
+      coordinates: { lat: 35.5439, lng: 129.3589 },
+      status: '복귀중'
+    }
+  ]);
 
+  // 기존 데이터와 호환되는 형태로 변환
+  const emergencyVehicles: EmergencyVehicle[] = vehicles.map(vehicle => ({
+    id: vehicle.id,
+    type: vehicle.type,
+    location: vehicle.location,
+    status: vehicle.status === '출동중' || vehicle.status === '현장도착' ? '출동중' : '대기중',
+    eta: vehicle.status === '출동중' ? '5분' : vehicle.status === '현장도착' ? '도착완료' : '-'
+  }));
+
+  const incidents: Incident[] = emergencies.map(emergency => ({
+    id: emergency.id,
+    type: emergency.type,
+    location: emergency.location,
+    severity: emergency.priority === '긴급' ? '심각' : emergency.priority === '높음' ? '중간' : '낮음',
+    reportTime: emergency.time.split(' ')[1]
+  }));
+
+  // 불법주차 데이터 (울산 지역)
   const illegalParking: IllegalParking[] = [
-    { id: 'P001', vehicleNo: '서울 가 1234', location: '강남구 역삼동 123-45 앞', time: '08:15:24', status: '단속중' },
-    { id: 'P002', vehicleNo: '경기 나 5678', location: '서초구 서초동 456-78 앞', time: '08:30:12', status: '확인필요' },
-    { id: 'P003', vehicleNo: '서울 다 9012', location: '강남구 삼성동 901-23 앞', time: '08:45:36', status: '조치완료' }
+    { id: 'P001', vehicleNo: '울산 가 1234', location: '울산시 남구 삼산로 350 앞', time: '08:15:24', status: '단속중' },
+    { id: 'P002', vehicleNo: '울산 나 5678', location: '울산시 중구 성남동 중앙로 앞', time: '08:30:12', status: '확인필요' },
+    { id: 'P003', vehicleNo: '울산 다 9012', location: '울산시 동구 일산동 현대백화점 앞', time: '08:45:36', status: '조치완료' },
+    { id: 'P004', vehicleNo: '울산 라 3456', location: '울산시 북구 화봉동 울산대학교 앞', time: '09:10:15', status: '단속중' }
   ];
 
+  // CCTV 카메라 데이터 (울산 지역)
   const cameraFeedList: CameraFeed[] = [
-    { id: 1, name: '역삼동 교차로', status: '감시중', ip: '172.31.0.101' },
-    { id: 2, name: '서초동 대로', status: '발견됨', ip: '172.31.0.102' },
-    { id: 3, name: '삼성동 주택가', status: '감시중', ip: '172.31.0.103' },
-    { id: 4, name: '강남대로 입구', status: '감시중', ip: '172.31.0.104' },
-    { id: 5, name: '테헤란로 사거리', status: '발견됨', ip: '172.31.0.105' },
-    { id: 6, name: '학동로 골목', status: '감시중', ip: '172.31.0.106' }
+    { id: 1, name: '삼산로 교차로', status: '감시중', ip: '172.31.0.101' },
+    { id: 2, name: '성남동 중앙로', status: '발견됨', ip: '172.31.0.102' },
+    { id: 3, name: '화봉동 울산대학교', status: '감시중', ip: '172.31.0.103' },
+    { id: 4, name: '일산동 현대백화점', status: '감시중', ip: '172.31.0.104' },
+    { id: 5, name: '태화동 소방서', status: '발견됨', ip: '172.31.0.105' },
+    { id: 6, name: '전하동 병원', status: '감시중', ip: '172.31.0.106' }
   ];
 
   // 필터링 함수
@@ -156,30 +256,41 @@ const EmergencyControlSystem: React.FC = () => {
   };
 
   // 모달 내부 스트림 컴포넌트
-  const ModalStreamComponent: React.FC<ModalStreamProps> = ({ cameraId, streamKey, cameraList }) => {
+  const ModalStreamComponent: React.FC<ModalStreamProps> = ({ cameraId, cameraList }) => {
     const videoRef = useRef<HTMLImageElement>(null);
 
     // 초기 이미지 URL 설정
     const camera = cameraList.find(cam => cam.id === cameraId);
     const ip = camera?.ip || '172.31.0.101';
-    const initialStreamUrl = `http://${ip}:81/stream?init=true`;
 
     useEffect(() => {
       if (cameraId !== null && videoRef.current) {
-
-        // 약간의 지연 후 스트림 연결 (이전 연결이 완전히 끊기도록)
-        const timer = setTimeout(() => {
-          if (videoRef.current) {
-            // 새로운 스트림 URL 생성 (캐시 방지용 랜덤 키 추가)
-            const streamUrl = `http://${ip}:81/stream?key=${streamKey}&t=${Date.now()}`;
-            console.log("Setting stream URL:", streamUrl); // 디버깅용
-            videoRef.current.src = streamUrl;
-          }
-        }, 300);
-
-        return () => clearTimeout(timer);
+        // 기존 그리드의 이미지 엘리먼트를 찾아서 src를 복사
+        const gridImage = document.querySelector(`.camera-feed[data-camera-id="${cameraId}"] img`) as HTMLImageElement;
+        
+        if (gridImage && gridImage.src) {
+          // 그리드 이미지의 현재 src를 그대로 사용
+          videoRef.current.src = gridImage.src;
+          
+          // 그리드 이미지를 일시적으로 숨김
+          gridImage.style.visibility = 'hidden';
+        } else {
+          // 그리드 이미지가 없는 경우에만 새로운 스트림 연결
+          const streamUrl = `http://${ip}:81/stream?t=${Date.now()}`;
+          videoRef.current.src = streamUrl;
+        }
       }
-    }, [cameraId, streamKey, cameraList, ip]);
+
+      // 정리 함수: 모달이 닫힐 때 그리드 이미지 다시 표시
+      return () => {
+        if (cameraId !== null) {
+          const gridImage = document.querySelector(`.camera-feed[data-camera-id="${cameraId}"] img`) as HTMLImageElement;
+          if (gridImage) {
+            gridImage.style.visibility = 'visible';
+          }
+        }
+      };
+    }, [cameraId, cameraList, ip]);
 
     if (!cameraId) return null;
 
@@ -188,7 +299,6 @@ const EmergencyControlSystem: React.FC = () => {
         <div className="modal-camera-image">
           <img
             ref={videoRef}
-            src={initialStreamUrl}
             alt={`카메라 ${cameraId}`}
             onError={(e) => {
               const target = e.target as HTMLImageElement;
@@ -256,84 +366,57 @@ const EmergencyControlSystem: React.FC = () => {
     </div>
   );
 
-  // 맵 컴포넌트
-  const renderMapComponent = () => (
-    <div className="map-container">
-      <img src="https://placehold.co/800x600" alt="지도" className="map-placeholder" />
-      <div className="map-overlay">
-        <span>맵 API가 여기에 로드될 예정입니다</span>
+// 카메라 피드 렌더링
+const renderCameraFeed = (id: number) => {
+  const camera = cameraFeedList.find(cam => cam.id === id);
+  const status = camera?.status || '감시중';
+  const ip = camera?.ip || '172.31.0.101';
+  const streamUrl = `http://${ip}:81/stream`;
+
+  return (
+    <div
+      key={id}
+      className={`camera-feed ${id === selectedCamera ? 'active' : ''}`}
+      data-camera-id={id} // 모달에서 참조할 수 있도록 data 속성 추가
+      onClick={() => {
+        setModalCamera(id);
+      }}
+    >
+      <div className="camera-feed-label">
+        카메라 {id}
       </div>
-
-      <div className="map-marker incident" title="사고위치"></div>
-      <div className="map-marker vehicle" title="긴급차량 1"></div>
-      <div className="map-marker parking" title="불법주차"></div>
-      <div className="map-marker parking-2" title="불법주차"></div>
-
-      <div className="map-controls">
-        <button className="map-control-button">⬆️</button>
-        <div className="map-control-row">
-          <button className="map-control-button">⬅️</button>
-          <button className="map-control-button">➡️</button>
+      <div className="camera-feed-status">
+        {status}
+      </div>
+      {status === '발견됨' && (
+        <div className="camera-feed-recording">
+          <div className="recording-indicator"></div>
+          <span className="recording-label">주차발견</span>
         </div>
-        <button className="map-control-button">⬇️</button>
-        <button className="map-control-button">+</button>
-        <button className="map-control-button">-</button>
+      )}
+      <div className="camera-feed-image">
+        <img
+          src={streamUrl}
+          alt={`카메라 ${id}`}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.onerror = null;
+            target.src = 'https://placehold.co/400x225/1f2937/cccccc?text=Connection+failed';
+          }}
+          style={{ 
+            width: '100%', 
+            height: '100%', 
+            objectFit: 'cover',
+            visibility: 'visible' // 초기값 설정
+          }}
+        />
+      </div>
+      <div className="camera-feed-name">
+        {camera?.name || `카메라 ${id}`}
       </div>
     </div>
   );
-
-  // 카메라 피드 렌더링
-  const renderCameraFeed = (id: number) => {
-    const camera = cameraFeedList.find(cam => cam.id === id);
-    const status = camera?.status || '감시중';
-    const ip = camera?.ip || '172.31.0.101';
-    const streamUrl = `http://${ip}:81/stream`;
-
-    return (
-      <div
-        key={id}
-        className={`camera-feed ${id === selectedCamera ? 'active' : ''}`}
-        onClick={() => {
-          setModalCamera(id); // 모달 표시 트리거
-        }}
-      >
-        <div className="camera-feed-label">
-          카메라 {id}
-        </div>
-        <div className="camera-feed-status">
-          {status}
-        </div>
-        {status === '발견됨' && (
-          <div className="camera-feed-recording">
-            <div className="recording-indicator"></div>
-            <span className="recording-label">주차발견</span>
-          </div>
-        )}
-        <div className="camera-feed-image">
-          {!isStreamPaused ? (
-            <img
-              src={streamUrl}
-              alt={`카메라 ${id}`}
-              onError={(e) => {
-                // 이미지 로드 실패 시 대체 이미지 표시
-                const target = e.target as HTMLImageElement;
-                target.onerror = null;
-                target.src = 'https://placehold.co/400x225/1f2937/cccccc?text=Connection+failed';
-              }}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          ) : (
-            <div className='stream-paused'>
-              <span>Looking at modal</span>
-            </div>
-          )}
-        </div>
-        <div className="camera-feed-name">
-          {camera?.name || `카메라 ${id}`}
-        </div>
-      </div>
-    );
-  };
+};
 
   return (
     <div className="app-container">
@@ -399,7 +482,10 @@ const EmergencyControlSystem: React.FC = () => {
                 <div className="dashboard-main">
                   <div className="card">
                     <h3 className="card-title">실시간 상황도</h3>
-                    {renderMapComponent()}
+                    <MapComponent 
+                      emergencies={emergencies} 
+                      vehicles={vehicles} 
+                      />
                   </div>
                 </div>
                 <div>
@@ -452,7 +538,10 @@ const EmergencyControlSystem: React.FC = () => {
                 </select>
               </div>
               <div className="card" style={{ height: 'calc(100vh - 180px)', overflow: 'hidden' }}>
-                {renderMapComponent()}
+                <MapComponent 
+                  emergencies={emergencies} 
+                  vehicles={vehicles} 
+                />
               </div>
             </div>
           )}
@@ -682,7 +771,6 @@ const EmergencyControlSystem: React.FC = () => {
                     <div className="action-buttons">
                       <button className="action-button warning">불법주차 차량 이동 요청</button>
                       <button className="action-button dispatch">긴급차량 연락</button>
-                      {/* <button className="action-button message">차주 문자 발송</button> */}
                       <button className="action-button complete">조치 완료 처리</button>
                     </div>
                   </div>
@@ -703,7 +791,6 @@ const EmergencyControlSystem: React.FC = () => {
             <h3>{cameraFeedList.find(cam => cam.id === modalCamera)?.name || `카메라 ${modalCamera}`}</h3>
             <ModalStreamComponent
               cameraId={modalCamera}
-              streamKey={streamKey}
               cameraList={cameraFeedList}
             />
             {/* 추가 카메라 정보 및 조치 버튼 */}

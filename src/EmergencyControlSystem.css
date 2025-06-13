@@ -253,11 +253,13 @@
   border-radius: 0.25rem;
   position: relative;
   overflow: hidden; /* 마커가 맵 밖으로 넘어가지 않도록 */
+  min-height: 300px;
 }
 
 @media (min-width: 768px) {
   .map-container {
     height: 24rem; /* 더 큰 화면에서는 맵 높이 증가 */
+    min-height: 400px;
   }
 }
 
@@ -910,9 +912,9 @@
   border-radius: 0.5rem;
   padding: 1.5rem;
   position: relative;
-  width: 90%;
-  max-width: 900px;
-  max-height: 90vh;
+  width: 85vw; 
+  max-width: 1200px; 
+  max-height: 85vh; 
   overflow: auto;
 }
 
